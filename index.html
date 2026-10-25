@@ -81,6 +81,8 @@ tbody tr.sel{background:var(--card2);box-shadow:inset 3px 0 0 var(--tx)}
 td.ld{white-space:nowrap;font-size:12px}
 .mb{display:flex;height:20px;border-radius:6px;overflow:hidden;min-width:130px}
 .mb i{display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;transition:width .6s}
+.top5{margin-top:20px;padding-top:16px;border-top:1px solid var(--ln)}
+.vv{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:2px}
 .foot{margin-top:14px;font-size:12px;color:var(--mut);text-align:center}
 .resumo{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 20px;margin-bottom:8px;color:var(--tx)}
 .resumo b{font-weight:700}
@@ -100,7 +102,7 @@ td.ld{white-space:nowrap;font-size:12px}
   <section class="card" id="hero"></section>
 
   <div class="grid">
-    <section class="card"><h3 id="maph"></h3><div id="map"></div><div id="mapuf" hidden></div><div class="carr" id="carr"></div><div class="lg" id="lg"></div></section>
+    <section class="card"><h3 id="maph"></h3><div id="map"></div><div id="mapuf" hidden></div><div class="carr" id="carr"></div><div class="lg" id="lg"></div><div id="top5" class="top5"></div></section>
     <section class="card"><h3>Estados por tamanho do eleitorado</h3><div class="tw"><table id="tbl"></table></div></section>
   </div>
   <div class="foot"><div id="resumo" class="resumo"></div>Fonte: TSE · resultados.tse.jus.br · atualiza a cada 30s</div>
@@ -120,6 +122,13 @@ const pct=(n,d=2)=>n.toFixed(d).replace('.',',');
 function cands(o,a=[]){if(Array.isArray(o))o.forEach(x=>cands(x,a));else if(o&&typeof o==='object'){if(o.sqcand&&o.vap!==undefined)a.push(o);Object.values(o).forEach(v=>cands(v,a))}return a}
 function cor(nome){const n=String(nome).toUpperCase();if(n.includes('LULA'))return 'var(--lula)';if(n.includes('FLAVIO')||n.includes('BOLSONARO'))return 'var(--flavio)';return '#888'}
 const isLula=n=>/LULA/i.test(n);
+const ordLula=cs=>[...cs].sort((a,b)=>(isLula(b.nm)?1:0)-(isLula(a.nm)?1:0));
+const mbar=x=>`<div class="mb">${ordLula(x.cs).map(c=>`<i style="width:${c.p}%;background:${cor(c.nm)}">${pct(c.p,1)}</i>`).join('')}</div>`;
+const eleit=te=>te>=1e6?pct(te/1e6,1)+' mi':Math.round(te/1e3)+' mil';
+const murl=(uf,cd)=>`${B}6258/dados/${uf}/${uf}${cd}-c0001-e006258-u.json`;
+// maiores colégios eleitorais (eleitorado TSE 2026): [uf, código TSE, nome]
+const TOP=[['sp','71072','São Paulo'],['rj','60011','Rio de Janeiro'],['df','97012','Brasília'],['mg','41238','Belo Horizonte'],['ba','38490','Salvador']];
+const cid={};
 
 async function get(u){
   try{const r=await fetch(u+'?_='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok)return null;const d=await r.json();
@@ -131,11 +140,12 @@ async function load(){
   if(carregando)return;carregando=true;
   const b=document.getElementById('batu');b.disabled=true;b.textContent='↻ Atualizando…';
   try{
-    await Promise.all(['br',...UFS].map(async u=>{const r=await get(url(u));if(r)data[u]=r}));
+    await Promise.all([...['br',...UFS].map(async u=>{const r=await get(url(u));if(r)data[u]=r}),
+      ...TOP.map(async([u,cd])=>{const r=await get(murl(u,cd));if(r)cid[cd]=r})]);
     if(sel!=='br')atualizaUF(sel); // municípios do estado aberto, em segundo plano
     document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR')+(data.br?` · TSE ${data.br.ht}`:'');
     // só redesenha se o TSE trouxe algo novo
-    const sig=Object.entries(data).map(([u,x])=>u+x.ht+x.pst).join();
+    const sig=[...Object.entries(data),...Object.entries(cid)].map(([u,x])=>u+x.ht+x.pst).join();
     if(sig!==ultSig){ultSig=sig;render()}
   }finally{carregando=false;b.disabled=false;b.textContent='↻ Atualizar dados'}
 }
@@ -185,11 +195,15 @@ function render(){
   const rows=Object.entries(data).filter(([u])=>u!=='br').sort((a,b)=>b[1].te-a[1].te);
   document.getElementById('tbl').innerHTML=`<thead><tr><th>UF</th><th class="n">Eleitores</th><th>Líder</th><th>Lula × Flávio (%)</th><th class="n">Apurado</th></tr></thead><tbody>`+
    rows.map(([u,x])=>{const l=x.cs[0]||{};
-     const ord=[...x.cs].sort((a,b)=>(isLula(b.nm)?1:0)-(isLula(a.nm)?1:0));
-     const mb=`<div class="mb">${ord.map(c=>`<i style="width:${c.p}%;background:${cor(c.nm)}">${pct(c.p,1)}</i>`).join('')}</div>`;
-     const el=x.te>=1e6?pct(x.te/1e6,1)+' mi':Math.round(x.te/1e3)+' mil';
+     const mb=mbar(x),el=eleit(x.te);
      return `<tr data-u="${u}" class="${sel===u?'sel':''}"><td><b>${u.toUpperCase()}</b></td><td class="n mut">${el}</td><td class="ld"><span class="dot" style="background:${cor(l.nm)}"></span> ${l.nm||'-'}${l.e?' <span class="el">ELEITO</span>':''}</td><td>${mb}</td><td class="n">${pct(x.pst,1)}%</td></tr>`}).join('')+'</tbody>';
-  document.querySelectorAll('#tbl tr[data-u]').forEach(t=>t.onclick=()=>{selecionar(t.dataset.u);scrollTo({top:0,behavior:'smooth'})});
+  // 5 maiores colégios eleitorais (só na visão Brasil)
+  const t5=document.getElementById('top5');t5.hidden=sel!=='br';
+  if(sel==='br')t5.innerHTML=`<h3>Maiores colégios eleitorais</h3><div class="tw"><table><thead><tr><th>Cidade</th><th class="n">Eleitores</th><th>Lula × Flávio</th><th class="n">Apurado</th></tr></thead><tbody>`+
+    TOP.map(([u,cd,nm])=>{const x=cid[cd];if(!x)return `<tr data-u="${u}"><td><b>${nm}</b> <span class="mut">${u.toUpperCase()}</span></td><td class="n mut">-</td><td class="mut">sem dados</td><td class="n">-</td></tr>`;
+      const ord=ordLula(x.cs);
+      return `<tr data-u="${u}"><td><b>${nm}</b> <span class="mut">${u.toUpperCase()}</span></td><td class="n mut">${eleit(x.te)}</td><td>${mbar(x)}<div class="vv num">${ord.map(c=>`<span>${fmt(c.v)}</span>`).join('')}</div></td><td class="n">${pct(x.pst,1)}%</td></tr>`}).join('')+'</tbody></table></div>';
+  document.querySelectorAll('#tbl tr[data-u],#top5 tr[data-u]').forEach(t=>t.onclick=()=>{selecionar(t.dataset.u);scrollTo({top:0,behavior:'smooth'})});
 }
 
 function selecionar(uf){sel=uf;render();if(uf!=='br')atualizaUF(uf)}
@@ -239,7 +253,7 @@ async function atualizaUF(uf){
     catch(e){lista=Object.keys(M.paths).filter(cd=>!M.res[cd]).map(cd=>[cd,null])}
     const novo=!Object.keys(M.res).length;let feitos=0;
     await pool(lista,12,async([cd,ht])=>{if(sel!==uf)return;
-      const r=await get(`${B}6258/dados/${uf}/${uf}${cd}-c0001-e006258-u.json`);
+      const r=await get(murl(uf,cd));
       if(r){M.res[cd]=r;M.ht[cd]=ht}feitos++;
       if(novo&&sel===uf&&feitos%40===0){pintaUF(uf);aviso(`Carregando municípios ${feitos}/${lista.length}…`)}});
     if(sel===uf){pintaUF(uf);aviso('')}
