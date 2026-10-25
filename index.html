@@ -75,6 +75,8 @@ td.ld{white-space:nowrap;font-size:12px}
 .mb{display:flex;height:20px;border-radius:6px;overflow:hidden;min-width:130px}
 .mb i{display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;transition:width .6s}
 .foot{margin-top:14px;font-size:12px;color:var(--mut);text-align:center}
+.resumo{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 20px;margin-bottom:8px;color:var(--tx)}
+.resumo b{font-weight:700}
 </style>
 </head>
 <body>
@@ -94,7 +96,7 @@ td.ld{white-space:nowrap;font-size:12px}
     <section class="card"><h3>Liderança por estado <span class="mut">· clique para detalhar</span></h3><div id="map"></div><div class="lg" id="lg"></div></section>
     <section class="card"><h3>Estados por tamanho do eleitorado</h3><div class="tw"><table id="tbl"></table></div></section>
   </div>
-  <div class="foot">Fonte: TSE · resultados.tse.jus.br · atualiza a cada 1min30</div>
+  <div class="foot"><div id="resumo" class="resumo"></div>Fonte: TSE · resultados.tse.jus.br · atualiza a cada 1min30</div>
 </div>
 
 <script>
@@ -155,6 +157,8 @@ function hero(r){
 function render(){
   document.getElementById('hero').innerHTML=hero(data[sel]);
   document.getElementById('bbr').hidden=sel==='br';
+  const rs=data[sel];
+  document.getElementById('resumo').innerHTML=rs?`<span>Presidente · <b>${sel==='br'?'Brasil':sel.toUpperCase()}</b></span><span>Total apurado <b class="num">${pct(rs.pst)}%</b></span><span><b class="num">${fmt(rs.cs.reduce((s,x)=>s+x.v,0))}</b> votos válidos</span>`:'';
   // mapa
   if(MAP){for(const uf of UFS){const p=MAP.paths[uf],t=MAP.labels[uf];if(!p)continue;const x=data[uf];
     let tt=p.querySelector('title');if(!tt){tt=document.createElementNS(NS,'title');p.appendChild(tt)}
