@@ -61,6 +61,10 @@ h1{font-size:20px;font-weight:800;margin:0;letter-spacing:-.01em}
 #map path{stroke:var(--card);stroke-width:1.2;cursor:pointer;transition:fill .4s,fill-opacity .4s}
 #map path.na{fill:var(--na);cursor:default}#map path.sel{stroke:var(--tx);stroke-width:2.5}
 #map path:hover{filter:brightness(1.15)}
+#mapuf{max-width:540px;margin:auto}#mapuf svg{width:100%;height:auto;max-height:600px;display:block}
+#mapuf path{fill:var(--na);stroke:var(--card);stroke-width:.6;vector-effect:non-scaling-stroke;transition:fill .4s,fill-opacity .4s}
+#mapuf path:hover{filter:brightness(1.15)}
+.carr{font-size:12px;color:var(--mut);text-align:center;padding:6px 0}.carr:empty{display:none}
 #map text{font-size:11px;font-weight:700;fill:#fff;text-anchor:middle;dominant-baseline:middle;pointer-events:none;paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:2px}
 .lg{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:12px;font-size:12px}
 .lg span{display:inline-flex;align-items:center;gap:6px}
@@ -96,7 +100,7 @@ td.ld{white-space:nowrap;font-size:12px}
   <section class="card" id="hero"></section>
 
   <div class="grid">
-    <section class="card"><h3>Liderança por estado <span class="mut">· clique para detalhar</span></h3><div id="map"></div><div class="lg" id="lg"></div></section>
+    <section class="card"><h3 id="maph"></h3><div id="map"></div><div id="mapuf" hidden></div><div class="carr" id="carr"></div><div class="lg" id="lg"></div></section>
     <section class="card"><h3>Estados por tamanho do eleitorado</h3><div class="tw"><table id="tbl"></table></div></section>
   </div>
   <div class="foot"><div id="resumo" class="resumo"></div>Fonte: TSE · resultados.tse.jus.br · atualiza a cada 30s</div>
@@ -117,8 +121,8 @@ function cands(o,a=[]){if(Array.isArray(o))o.forEach(x=>cands(x,a));else if(o&&t
 function cor(nome){const n=String(nome).toUpperCase();if(n.includes('LULA'))return 'var(--lula)';if(n.includes('FLAVIO')||n.includes('BOLSONARO'))return 'var(--flavio)';return '#888'}
 const isLula=n=>/LULA/i.test(n);
 
-async function get(uf){
-  try{const r=await fetch(url(uf)+'?_='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok)return null;const d=await r.json();
+async function get(u){
+  try{const r=await fetch(u+'?_='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok)return null;const d=await r.json();
     const cs=cands(d).map(x=>({nm:x.nmu||x.nm,p:num(x.pvap),v:num(x.vap),e:x.e==='s'})).sort((a,b)=>b.v-a.v);
     return {pst:num(d.s?.pst),ht:d.ht,te:num(d.e?.te),cs};}catch(e){return null}
 }
@@ -127,7 +131,8 @@ async function load(){
   if(carregando)return;carregando=true;
   const b=document.getElementById('batu');b.disabled=true;b.textContent='↻ Atualizando…';
   try{
-    await Promise.all(['br',...UFS].map(async u=>{const r=await get(u);if(r)data[u]=r}));
+    await Promise.all(['br',...UFS].map(async u=>{const r=await get(url(u));if(r)data[u]=r}));
+    if(sel!=='br')atualizaUF(sel); // municípios do estado aberto, em segundo plano
     document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR')+(data.br?` · TSE ${data.br.ht}`:'');
     // só redesenha se o TSE trouxe algo novo
     const sig=Object.entries(data).map(([u,x])=>u+x.ht+x.pst).join();
@@ -157,6 +162,12 @@ function hero(r){
 function render(){
   document.getElementById('hero').innerHTML=hero(data[sel]);
   document.getElementById('bbr').hidden=sel==='br';
+  const ufm=document.getElementById('mapuf'),carr=document.getElementById('carr');
+  document.getElementById('map').hidden=sel!=='br';ufm.hidden=sel==='br';
+  document.getElementById('maph').innerHTML=sel==='br'?'Liderança por estado <span class="mut">· clique para detalhar</span>':`Liderança por município · ${sel.toUpperCase()} <span class="mut">· passe o mouse para ver</span>`;
+  if(sel==='br')carr.textContent='';
+  else if(UFM[sel]){if(ufm.firstChild!==UFM[sel].svg)ufm.replaceChildren(UFM[sel].svg);pintaUF(sel);if(!ufOcup.has(sel))carr.textContent=''}
+  else{ufm.replaceChildren();carr.textContent=`Carregando mapa de ${sel.toUpperCase()}…`}
   const rs=data[sel];
   document.getElementById('resumo').innerHTML=rs?`<span>Presidente · <b>${sel==='br'?'Brasil':sel.toUpperCase()}</b></span><span>Total apurado <b class="num">${pct(rs.pst)}%</b></span><span><b class="num">${fmt(rs.cs.reduce((s,x)=>s+x.v,0))}</b> votos válidos</span>`:'';
   // mapa
@@ -166,7 +177,7 @@ function render(){
     if(x&&x.cs.length){const l=x.cs[0];const marg=x.cs[1]?l.p-x.cs[1].p:100;
       p.setAttribute('class',sel===uf?'sel':'');p.style.fill=cor(l.nm);p.style.fillOpacity=x.pst?Math.min(1,.4+marg/25):.3;
       tt.textContent=`${uf.toUpperCase()} · ${l.nm} ${pct(l.p)}% · ${pct(x.pst,1)}% apurado`;
-      p.onclick=()=>{sel=uf;render()};}
+      p.onclick=()=>selecionar(uf);}
     else{p.setAttribute('class','na');p.style.fill='';p.style.fillOpacity='';tt.textContent=uf.toUpperCase();p.onclick=null}}}
   const nomes=[...new Set((data.br?.cs||[]).map(c=>c.nm))];
   document.getElementById('lg').innerHTML=nomes.map(n=>`<span><span class="dot" style="background:${cor(n)}"></span>${n}</span>`).join('')+'<span class="mut">cor mais forte = vantagem maior</span>';
@@ -178,7 +189,62 @@ function render(){
      const mb=`<div class="mb">${ord.map(c=>`<i style="width:${c.p}%;background:${cor(c.nm)}">${pct(c.p,1)}</i>`).join('')}</div>`;
      const el=x.te>=1e6?pct(x.te/1e6,1)+' mi':Math.round(x.te/1e3)+' mil';
      return `<tr data-u="${u}" class="${sel===u?'sel':''}"><td><b>${u.toUpperCase()}</b></td><td class="n mut">${el}</td><td class="ld"><span class="dot" style="background:${cor(l.nm)}"></span> ${l.nm||'-'}${l.e?' <span class="el">ELEITO</span>':''}</td><td>${mb}</td><td class="n">${pct(x.pst,1)}%</td></tr>`}).join('')+'</tbody>';
-  document.querySelectorAll('#tbl tr[data-u]').forEach(t=>t.onclick=()=>{sel=t.dataset.u;render();scrollTo({top:0,behavior:'smooth'})});
+  document.querySelectorAll('#tbl tr[data-u]').forEach(t=>t.onclick=()=>{selecionar(t.dataset.u);scrollTo({top:0,behavior:'smooth'})});
+}
+
+function selecionar(uf){sel=uf;render();if(uf!=='br')atualizaUF(uf)}
+
+// ---- mapa municipal: nada aqui roda na visão Brasil; só carrega ao abrir um estado ----
+const UFM={},ufOcup=new Set();let CM=null;
+const jget=async(u,bust)=>{const r=await fetch(u+(bust?'?_='+Date.now():''),{cache:bust?'no-store':'default',signal:AbortSignal.timeout(20000)});if(!r.ok)throw r.status;return r.json()};
+async function pool(itens,n,fn){let i=0;await Promise.all(Array.from({length:Math.min(n,itens.length)},async()=>{while(i<itens.length)await fn(itens[i++])}))}
+
+async function montaUF(uf){
+  if(!CM)CM=await jget(B+'6258/config/mun-e006258-cm.json'); // códigos TSE ↔ IBGE e nomes
+  const est=CM.abr.find(a=>a.cd===uf),porIbge={},nomes={};
+  est.mu.forEach(m=>{porIbge[m.cdi]=m.cd;nomes[m.cd]=m.nm});
+  const geo=await jget(`https://servicodados.ibge.gov.br/api/v3/malhas/estados/${est.mu[0].cdi.slice(0,2)}?intrarregiao=municipio&formato=application/vnd.geo%2Bjson&qualidade=minima`);
+  const polys=f=>f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  geo.features.forEach(f=>polys(f).forEach(pl=>pl.forEach(r=>r.forEach(([x,y])=>{if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}))));
+  // projeção equirretangular com correção pela latitude média
+  const k=Math.cos((y0+y1)/2*Math.PI/180),S=1000/Math.max((x1-x0)*k,y1-y0);
+  const P=([x,y])=>((x-x0)*k*S).toFixed(1)+' '+((y1-y)*S).toFixed(1);
+  const svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox',`0 0 ${Math.ceil((x1-x0)*k*S)} ${Math.ceil((y1-y0)*S)}`);
+  const paths={};
+  geo.features.forEach(f=>{const cd=porIbge[f.properties.codarea];if(!cd)return;
+    const p=document.createElementNS(NS,'path');
+    p.setAttribute('d',polys(f).map(pl=>pl.map(r=>'M'+r.map(P).join('L')+'Z').join('')).join(''));
+    p.appendChild(document.createElementNS(NS,'title'));svg.appendChild(p);paths[cd]=p});
+  return {svg,paths,nomes,res:{},ht:{}};
+}
+
+function pintaUF(uf){const M=UFM[uf];
+  for(const [cd,p] of Object.entries(M.paths)){const x=M.res[cd],t=p.firstChild;
+    if(x&&x.cs.length&&x.cs[0].v){const l=x.cs[0],marg=x.cs[1]?l.p-x.cs[1].p:100;
+      p.style.fill=cor(l.nm);p.style.fillOpacity=Math.min(1,.35+marg/40);
+      t.textContent=`${M.nomes[cd]} · ${x.cs.map(c=>`${c.nm} ${pct(c.p)}%`).join(' × ')} · ${pct(x.pst,1)}% apurado`}
+    else{p.style.fill='';p.style.fillOpacity='';t.textContent=M.nomes[cd]}}}
+
+async function atualizaUF(uf){
+  if(ufOcup.has(uf))return;ufOcup.add(uf);
+  const carr=document.getElementById('carr'),aviso=s=>{if(sel===uf)carr.textContent=s};
+  try{
+    if(!UFM[uf]){UFM[uf]=await montaUF(uf);if(sel===uf)render()}
+    const M=UFM[uf];
+    // o arquivo de abrangência traz a hora de totalização de cada município: só baixa os que mudaram
+    let lista;
+    try{const ab=await jget(`${B}6258/dados/${uf}/${uf}-e006258-ab.json`,true);
+      lista=ab.abr.filter(a=>M.paths[a.cdabr]&&a.ht&&M.ht[a.cdabr]!==a.ht).map(a=>[a.cdabr,a.ht]);}
+    catch(e){lista=Object.keys(M.paths).filter(cd=>!M.res[cd]).map(cd=>[cd,null])}
+    const novo=!Object.keys(M.res).length;let feitos=0;
+    await pool(lista,12,async([cd,ht])=>{if(sel!==uf)return;
+      const r=await get(`${B}6258/dados/${uf}/${uf}${cd}-c0001-e006258-u.json`);
+      if(r){M.res[cd]=r;M.ht[cd]=ht}feitos++;
+      if(novo&&sel===uf&&feitos%40===0){pintaUF(uf);aviso(`Carregando municípios ${feitos}/${lista.length}…`)}});
+    if(sel===uf){pintaUF(uf);aviso('')}
+  }catch(e){aviso('Não foi possível carregar os municípios.')}
+  finally{ufOcup.delete(uf)}
 }
 
 async function loadMap(){ // contornos dos estados (@svg-maps/brazil, CC BY 4.0) – só os paths são usados
@@ -198,7 +264,7 @@ async function loadMap(){ // contornos dos estados (@svg-maps/brazil, CC BY 4.0)
   }catch(e){document.getElementById('map').innerHTML='<div class="mut">Não foi possível carregar o mapa.</div>'}
 }
 document.getElementById('batu').onclick=load;
-document.getElementById('bbr').onclick=()=>{sel='br';render()};
+document.getElementById('bbr').onclick=()=>selecionar('br');
 // mapa e dados carregam em paralelo; ao chegar o mapa, redesenha com o que já houver
 loadMap().then(()=>{if(Object.keys(data).length)render()});load();
 setInterval(()=>{if(!document.hidden)load()},30000);
