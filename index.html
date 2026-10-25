@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Apuração 2º Turno</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://resultados.tse.jus.br" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--card2:#f8f9fb;--tx:#14161a;--mut:#6b7280;--ln:#e6e8ec;--na:#d9dce2;--txi:#14161a;
@@ -96,7 +99,7 @@ td.ld{white-space:nowrap;font-size:12px}
     <section class="card"><h3>Liderança por estado <span class="mut">· clique para detalhar</span></h3><div id="map"></div><div class="lg" id="lg"></div></section>
     <section class="card"><h3>Estados por tamanho do eleitorado</h3><div class="tw"><table id="tbl"></table></div></section>
   </div>
-  <div class="foot"><div id="resumo" class="resumo"></div>Fonte: TSE · resultados.tse.jus.br · atualiza a cada 1min30</div>
+  <div class="foot"><div id="resumo" class="resumo"></div>Fonte: TSE · resultados.tse.jus.br · atualiza a cada 30s</div>
 </div>
 
 <script>
@@ -115,18 +118,20 @@ function cor(nome){const n=String(nome).toUpperCase();if(n.includes('LULA'))retu
 const isLula=n=>/LULA/i.test(n);
 
 async function get(uf){
-  try{const r=await fetch(url(uf),{cache:'no-store'});if(!r.ok)return null;const d=await r.json();
+  try{const r=await fetch(url(uf)+'?_='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok)return null;const d=await r.json();
     const cs=cands(d).map(x=>({nm:x.nmu||x.nm,p:num(x.pvap),v:num(x.vap),e:x.e==='s'})).sort((a,b)=>b.v-a.v);
     return {pst:num(d.s?.pst),ht:d.ht,te:num(d.e?.te),cs};}catch(e){return null}
 }
-let carregando=false;
+let carregando=false,ultSig='';
 async function load(){
   if(carregando)return;carregando=true;
   const b=document.getElementById('batu');b.disabled=true;b.textContent='↻ Atualizando…';
   try{
     await Promise.all(['br',...UFS].map(async u=>{const r=await get(u);if(r)data[u]=r}));
     document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR')+(data.br?` · TSE ${data.br.ht}`:'');
-    render();
+    // só redesenha se o TSE trouxe algo novo
+    const sig=Object.entries(data).map(([u,x])=>u+x.ht+x.pst).join();
+    if(sig!==ultSig){ultSig=sig;render()}
   }finally{carregando=false;b.disabled=false;b.textContent='↻ Atualizar dados'}
 }
 
@@ -194,7 +199,10 @@ async function loadMap(){ // contornos dos estados (@svg-maps/brazil, CC BY 4.0)
 }
 document.getElementById('batu').onclick=load;
 document.getElementById('bbr').onclick=()=>{sel='br';render()};
-loadMap().then(load);setInterval(load,90000);
+// mapa e dados carregam em paralelo; ao chegar o mapa, redesenha com o que já houver
+loadMap().then(()=>{if(Object.keys(data).length)render()});load();
+setInterval(()=>{if(!document.hidden)load()},30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
 })();
 </script>
 </body>
