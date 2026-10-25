@@ -19,6 +19,9 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;fl
 h1{font-size:20px;font-weight:800;margin:0;letter-spacing:-.01em}
 .live{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--mut);background:var(--card);border:1px solid var(--ln);padding:6px 12px;border-radius:999px}
 .live i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(22,163,74,.6);animation:p 2s infinite}
+.acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;font:600 12px Inter,system-ui,sans-serif;color:var(--tx);background:var(--card);border:1px solid var(--ln);padding:6px 12px;border-radius:999px;cursor:pointer;transition:background .15s}
+.btn[hidden]{display:none}.btn:hover{background:var(--card2)}.btn:disabled{opacity:.6;cursor:default}
 @keyframes p{70%{box-shadow:0 0 0 8px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
 .card{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:20px}
 .label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
@@ -78,7 +81,11 @@ td.ld{white-space:nowrap;font-size:12px}
 <div class="wrap">
   <header>
     <h1>Apuração 2º Turno · 2026</h1>
-    <span class="live"><i></i><span id="upd">carregando…</span></span>
+    <div class="acts">
+      <button class="btn" id="bbr" hidden>← Voltar para mapa Brasil</button>
+      <button class="btn" id="batu">↻ Atualizar dados</button>
+      <span class="live"><i></i><span id="upd">carregando…</span></span>
+    </div>
   </header>
 
   <section class="card" id="hero"></section>
@@ -110,10 +117,15 @@ async function get(uf){
     const cs=cands(d).map(x=>({nm:x.nmu||x.nm,p:num(x.pvap),v:num(x.vap),e:x.e==='s'})).sort((a,b)=>b.v-a.v);
     return {pst:num(d.s?.pst),ht:d.ht,te:num(d.e?.te),cs};}catch(e){return null}
 }
+let carregando=false;
 async function load(){
-  await Promise.all(['br',...UFS].map(async u=>{const r=await get(u);if(r)data[u]=r}));
-  document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR')+(data.br?` · TSE ${data.br.ht}`:'');
-  render();
+  if(carregando)return;carregando=true;
+  const b=document.getElementById('batu');b.disabled=true;b.textContent='↻ Atualizando…';
+  try{
+    await Promise.all(['br',...UFS].map(async u=>{const r=await get(u);if(r)data[u]=r}));
+    document.getElementById('upd').textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR')+(data.br?` · TSE ${data.br.ht}`:'');
+    render();
+  }finally{carregando=false;b.disabled=false;b.textContent='↻ Atualizar dados'}
 }
 
 function hero(r){
@@ -128,7 +140,7 @@ function hero(r){
       <div class="pc num">${pct(c.p)}%</div>
       <div class="vt num">${fmt(c.v)} votos</div></div>`;
   return `<div class="hero-top">
-      <div><div class="label">Presidente</div><h2>${nomeAbr}${sel!=='br'?'<a href="#" id="vbr">← ver Brasil</a>':''}</h2></div>
+      <div><div class="label">Presidente</div><h2>${nomeAbr}</h2></div>
       <div class="apur"><div class="label">Total apurado</div><b class="num">${pct(r.pst)}%</b><span class="mut num">${fmt(tot)} votos válidos</span></div>
     </div>
     <div class="h2h">
@@ -142,7 +154,7 @@ function hero(r){
 
 function render(){
   document.getElementById('hero').innerHTML=hero(data[sel]);
-  const v=document.getElementById('vbr');if(v)v.onclick=e=>{e.preventDefault();sel='br';render()};
+  document.getElementById('bbr').hidden=sel==='br';
   // mapa
   if(MAP){for(const uf of UFS){const p=MAP.paths[uf],t=MAP.labels[uf];if(!p)continue;const x=data[uf];
     let tt=p.querySelector('title');if(!tt){tt=document.createElementNS(NS,'title');p.appendChild(tt)}
@@ -181,6 +193,8 @@ async function loadMap(){ // contornos dos estados (@svg-maps/brazil, CC BY 4.0)
     MAP={paths,labels};
   }catch(e){document.getElementById('map').innerHTML='<div class="mut">Não foi possível carregar o mapa.</div>'}
 }
+document.getElementById('batu').onclick=load;
+document.getElementById('bbr').onclick=()=>{sel='br';render()};
 loadMap().then(load);setInterval(load,90000);
 })();
 </script>
