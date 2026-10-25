@@ -131,21 +131,16 @@ async function load(){
 }
 
 function hero(r){
-  const nomeAbr=sel==='br'?'Brasil':sel.toUpperCase();
   if(!r)return `<div class="mut">Sem dados.</div>`;
   // ordem fixa: Flávio à esquerda, Lula à direita (igual à barra)
   const ord=[...r.cs].sort((a,b)=>(isLula(a.nm)?1:0)-(isLula(b.nm)?1:0));
   const [A,Bc]=ord;const lider=r.cs[0],seg=r.cs[1];
-  const dif=seg?lider.v-seg.v:0,pp=seg?lider.p-seg.p:0,tot=r.cs.reduce((s,x)=>s+x.v,0);
+  const dif=seg?lider.v-seg.v:0,pp=seg?lider.p-seg.p:0;
   const cand=(c,right)=>`<div class="cand ${right?'r':''}">
       <div class="nm">${right?'':`<span class="sw" style="background:${cor(c.nm)}"></span>`}${c.nm}${c.e?' <span class="el">ELEITO</span>':''}${right?`<span class="sw" style="background:${cor(c.nm)}"></span>`:''}</div>
       <div class="pc num">${pct(c.p)}%</div>
       <div class="vt num">${fmt(c.v)} votos</div></div>`;
-  return `<div class="hero-top">
-      <div><div class="label">Presidente</div><h2>${nomeAbr}</h2></div>
-      <div class="apur"><div class="label">Total apurado</div><b class="num">${pct(r.pst)}%</b><span class="mut num">${fmt(tot)} votos válidos</span></div>
-    </div>
-    <div class="h2h">
+  return `<div class="h2h">
       ${A?cand(A,false):''}
       ${seg?`<div class="dif"><div class="label">Diferença</div><b class="num">${fmt(dif)}</b><small>votos · ${pct(pp)} p.p.</small><div class="who" style="color:${cor(lider.nm)}">vantagem de ${lider.nm}</div></div>`:'<div></div>'}
       ${Bc?cand(Bc,true):''}
