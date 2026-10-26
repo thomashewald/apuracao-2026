@@ -66,7 +66,7 @@ tr.mud{animation:realce .6s ease-out}
 
 /* GRID */
 .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:16px;margin-top:16px}
-@media(max-width:860px){.grid{grid-template-columns:1fr}.h2h{grid-template-columns:1fr 1fr}.dif{grid-column:1/-1;order:3}.cand .pc{font-size:32px}}
+@media(max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}.h2h{grid-template-columns:1fr 1fr}.dif{grid-column:1/-1;order:3}.cand .pc{font-size:32px}}
 .card h3{margin:0 0 12px;font-size:13px;font-weight:600}
 #map{max-width:540px;margin:auto}#map svg{width:100%;height:auto;display:block}
 #map path{stroke:var(--card);stroke-width:1.2;cursor:pointer;transition:fill .4s,fill-opacity .4s}
@@ -91,9 +91,16 @@ tbody tr{cursor:pointer;transition:background .15s}tbody tr:hover{background:var
 tbody tr.sel{background:var(--card2);box-shadow:inset 3px 0 0 var(--tx)}
 td.ld{white-space:nowrap;font-size:12px}
 .mb{display:flex;height:20px;border-radius:6px;overflow:hidden;min-width:130px}
+@media(max-width:600px){
+  .wrap{padding:14px 12px 24px}.card{padding:14px;border-radius:14px}
+  .cand .pc{font-size:28px}.cand .nm{font-size:13px}.dif b{font-size:24px}.dif{padding:10px 12px;min-width:0}
+  table{font-size:12px}th{padding:6px 4px;font-size:10px}td{padding:6px 4px}
+  .ld{display:none}.mb{min-width:96px}.mb i{font-size:10px}
+  #top5 td:first-child span{display:block}.vv{font-size:10px}
+}
 .mb i{display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;transition:width .6s}
 .top5{margin-top:20px;padding-top:16px;border-top:1px solid var(--ln)}
-.vv{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:2px}
+.vv{display:flex;justify-content:space-between;gap:6px;font-size:11px;color:var(--mut);margin-top:2px}
 .foot{margin-top:14px;font-size:12px;color:var(--mut);text-align:center}
 .resumo{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 20px;margin-bottom:8px;color:var(--tx)}
 .resumo b{font-weight:700}
@@ -221,7 +228,7 @@ function render(){
   document.getElementById('lg').innerHTML=nomes.map(n=>`<span><span class="dot" style="background:${cor(n)}"></span>${n}</span>`).join('')+'<span class="mut">cor mais forte = vantagem maior</span>';
   // tabela
   const rows=Object.entries(data).filter(([u])=>u!=='br').sort((a,b)=>b[1].te-a[1].te);
-  document.getElementById('tbl').innerHTML=`<thead><tr><th>UF</th><th class="n">Eleitores</th><th>Líder</th><th>Lula × Flávio (%)</th><th class="n">Apurado</th></tr></thead><tbody>`+
+  document.getElementById('tbl').innerHTML=`<thead><tr><th>UF</th><th class="n">Eleitores</th><th class="ld">Líder</th><th>Lula × Flávio (%)</th><th class="n">Apurado</th></tr></thead><tbody>`+
    rows.map(([u,x],i)=>{const l=x.cs[0]||{};
      const mb=mbar(x),el=eleit(x.te);
      return `<tr data-u="${u}" class="${sel===u?'sel':''}${E}${mud(u,x.pst+'|'+x.cs.map(c=>c.v))}" style="--i:${i+6}"><td><b>${u.toUpperCase()}</b></td><td class="n mut">${el}</td><td class="ld"><span class="dot" style="background:${cor(l.nm)}"></span> ${l.nm||'-'}${l.e?' <span class="el">ELEITO</span>':''}</td><td>${mb}</td><td class="n">${pct(x.pst,1)}%</td></tr>`}).join('')+'</tbody>';
