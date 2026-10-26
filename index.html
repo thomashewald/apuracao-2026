@@ -26,6 +26,15 @@ h1{font-size:20px;font-weight:800;margin:0;letter-spacing:-.01em}
 .acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .btn{display:inline-flex;align-items:center;gap:6px;font:600 12px Inter,system-ui,sans-serif;color:var(--tx);background:var(--card);border:1px solid var(--ln);padding:6px 12px;border-radius:999px;cursor:pointer;transition:background .15s}
 .btn[hidden]{display:none}.btn:hover{background:var(--card2)}.btn:disabled{opacity:.6;cursor:default}
+.btn{transition:background .15s,transform .12s}.btn:active:not(:disabled){transform:scale(.96)}
+.btn .ic{display:inline-block}.btn.gir .ic{animation:gira .8s linear infinite}#bbr{animation:sobe .3s ease-out backwards}
+@keyframes gira{to{transform:rotate(360deg)}}
+@keyframes sobe{from{opacity:0;transform:translateY(8px)}}
+@keyframes realce{from{background:color-mix(in srgb,var(--ok) 22%,transparent)}}
+header,.card{animation:sobe .5s cubic-bezier(.2,.7,.2,1) backwards}.grid>.card{animation-delay:.08s}.grid>.card+.card{animation-delay:.16s}
+.ent{animation:sobe .45s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc(var(--i,0)*20ms)}
+tr.mud{animation:realce .6s ease-out}
+@media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 @keyframes p{70%{box-shadow:0 0 0 8px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
 .card{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:20px}
 .label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
@@ -96,7 +105,7 @@ td.ld{white-space:nowrap;font-size:12px}
     <h1>Apuração 2º Turno · 2026</h1>
     <div class="acts">
       <button class="btn" id="bbr" hidden>← Voltar para mapa Brasil</button>
-      <button class="btn" id="batu">↻ Atualizar dados</button>
+      <button class="btn" id="batu"><span class="ic">↻</span> Atualizar dados</button>
       <span class="live"><i></i><span id="upd">carregando…</span></span>
     </div>
   </header>
@@ -131,6 +140,18 @@ const murl=(uf,cd)=>`${B}6258/dados/${uf}/${uf}${cd}-c0001-e006258-u.json`;
 // maiores colégios eleitorais (eleitorado TSE 2026): [uf, código TSE, nome]
 const TOP=[['sp','71072','São Paulo'],['rj','60011','Rio de Janeiro'],['df','97012','Brasília'],['mg','41238','Belo Horizonte'],['ba','38490','Salvador'],['ce','13897','Fortaleza'],['am','02550','Manaus']];
 const cid={};
+// animações: valores anteriores dos números, assinaturas das linhas e entrada só no 1º render
+const RM=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+const ANT={},ANTL={};let E='',prim=true,ultSel=null,rafC=0;
+const nk=(k,v,p)=>`<span data-k="${k}" data-v="${v}"${p?' data-f="p"':''}>${p?pct(v):fmt(v)}</span>`;
+const anim=el=>{if(!RM()&&el.animate)el.animate([{opacity:0,transform:'scale(.97)'},{opacity:1,transform:'none'}],{duration:350,easing:'cubic-bezier(.2,.7,.2,1)'})};
+function conta(){const t0=performance.now();cancelAnimationFrame(rafC);
+  const it=[...document.querySelectorAll('#hero [data-k],#resumo [data-k]')].map(e=>{const k=e.dataset.k,v=+e.dataset.v,a=ANT[k]??0;ANT[k]=v;
+    return {e,a,v,f:e.dataset.f?pct:fmt}}).filter(o=>o.a!==o.v);
+  if(!it.length||RM())return;
+  const passo=t=>{const q=Math.min(1,(t-t0)/600),k=1-(1-q)**3;for(const o of it)o.e.textContent=o.f(o.a+(o.v-o.a)*k);if(q<1)rafC=requestAnimationFrame(passo)};
+  passo(t0)}
+const mud=(k,s)=>{const o=ANTL[k];ANTL[k]=s;return !prim&&o!==undefined&&o!==s?' mud':''};
 // bandeira em SVG (emoji de bandeira não aparece no Windows)
 const FLAG='<svg class="flag" viewBox="0 0 20 14" role="img" aria-label="Bandeira do Brasil"><rect width="20" height="14" rx="1.5" fill="#009c3b"/><path d="M10 1.6 18.4 7 10 12.4 1.6 7z" fill="#ffdf00"/><circle cx="10" cy="7" r="3.1" fill="#002776"/><path d="M7 6.4c2-.7 4.3-.4 6 .9" stroke="#fff" stroke-width=".6" fill="none"/></svg>';
 
@@ -142,7 +163,7 @@ async function get(u){
 let carregando=false,ultSig='';
 async function load(){
   if(carregando)return;carregando=true;
-  const b=document.getElementById('batu');b.disabled=true;b.textContent='↻ Atualizando…';
+  const b=document.getElementById('batu');b.disabled=true;b.classList.add('gir');b.innerHTML='<span class="ic">↻</span> Atualizando…';
   try{
     await Promise.all([...['br',...UFS].map(async u=>{const r=await get(url(u));if(r)data[u]=r}),
       ...TOP.map(async([u,cd])=>{const r=await get(murl(u,cd));if(r)cid[cd]=r})]);
@@ -151,7 +172,7 @@ async function load(){
     // só redesenha se o TSE trouxe algo novo
     const sig=[...Object.entries(data),...Object.entries(cid)].map(([u,x])=>u+x.ht+x.pst).join();
     if(sig!==ultSig){ultSig=sig;render()}
-  }finally{carregando=false;b.disabled=false;b.textContent='↻ Atualizar dados'}
+  }finally{carregando=false;b.disabled=false;b.classList.remove('gir');b.innerHTML='<span class="ic">↻</span> Atualizar dados'}
 }
 
 function hero(r){
@@ -162,28 +183,31 @@ function hero(r){
   const dif=seg?lider.v-seg.v:0,pp=seg?lider.p-seg.p:0;
   const cand=(c,right)=>`<div class="cand ${right?'r':''}">
       <div class="nm">${right?'':`<span class="sw" style="background:${cor(c.nm)}"></span>`}${right&&c===lider?FLAG:''}${c.nm}${c.e?' <span class="el">ELEITO</span>':''}${!right&&c===lider?FLAG:''}${right?`<span class="sw" style="background:${cor(c.nm)}"></span>`:''}</div>
-      <div class="pc num">${pct(c.p)}%</div>
-      <div class="vt num">${fmt(c.v)} votos</div></div>`;
-  return `<div class="h2h">
+      <div class="pc num">${nk('p'+c.nm,c.p,1)}%</div>
+      <div class="vt num">${nk('v'+c.nm,c.v)} votos</div></div>`;
+  return `<div class="h2h${E}">
       ${A?cand(A,false):''}
-      ${seg?`<div class="dif"><div class="label">Diferença</div><b class="num">${fmt(dif)}</b><small>votos · ${pct(pp)} p.p.</small><div class="who" style="color:${cor(lider.nm)}">vantagem de ${lider.nm}</div></div>`:'<div></div>'}
+      ${seg?`<div class="dif"><div class="label">Diferença</div><b class="num">${nk('dif',dif)}</b><small>votos · ${nk('pp',pp,1)} p.p.</small><div class="who" style="color:${cor(lider.nm)}">vantagem de ${lider.nm}</div></div>`:'<div></div>'}
       ${Bc?cand(Bc,true):''}
     </div>
-    <div class="bar">${ord.map(x=>`<div style="width:${x.p}%;background:${cor(x.nm)}"></div>`).join('')}</div>
-    <div class="prog"><span>Seções totalizadas</span><span class="t"><i style="width:${r.pst}%"></i></span><span class="num">${pct(r.pst)}%</span></div>`;
+    <div class="bar${E}" style="--i:3">${ord.map(x=>`<div style="width:${x.p}%;background:${cor(x.nm)}"></div>`).join('')}</div>
+    <div class="prog${E}" style="--i:5"><span>Seções totalizadas</span><span class="t"><i style="width:${r.pst}%"></i></span><span class="num">${nk('pst',r.pst,1)}%</span></div>`;
 }
 
 function render(){
+  E=prim&&data.br?' ent':'';
   document.getElementById('hero').innerHTML=hero(data[sel]);
   document.getElementById('bbr').hidden=sel==='br';
   const ufm=document.getElementById('mapuf'),carr=document.getElementById('carr');
-  document.getElementById('map').hidden=sel!=='br';ufm.hidden=sel==='br';
+  const mp=document.getElementById('map');mp.hidden=sel!=='br';ufm.hidden=sel==='br';
+  if(ultSel!==null&&ultSel!==sel)anim(sel==='br'?mp:ufm);ultSel=sel;
   document.getElementById('maph').innerHTML=sel==='br'?'Liderança por estado <span class="mut">· clique para detalhar</span>':`Liderança por município · ${sel.toUpperCase()} <span class="mut">· passe o mouse para ver</span>`;
   if(sel==='br')carr.textContent='';
-  else if(UFM[sel]?.svg){if(ufm.firstChild!==UFM[sel].svg)ufm.replaceChildren(UFM[sel].svg);pintaUF(sel);if(!ufOcup.has(sel))carr.textContent=''}
+  else if(UFM[sel]?.svg){if(ufm.firstChild!==UFM[sel].svg){ufm.replaceChildren(UFM[sel].svg);anim(ufm)}pintaUF(sel);if(!ufOcup.has(sel))carr.textContent=''}
   else{ufm.replaceChildren();carr.textContent=`Carregando mapa de ${sel.toUpperCase()}…`}
   const rs=data[sel];
-  document.getElementById('resumo').innerHTML=rs?`<span>Presidente · <b>${sel==='br'?'Brasil':sel.toUpperCase()}</b></span><span>Total apurado <b class="num">${pct(rs.pst)}%</b></span><span><b class="num">${fmt(rs.cs.reduce((s,x)=>s+x.v,0))}</b> votos válidos</span>`:'';
+  document.getElementById('resumo').innerHTML=rs?`<span>Presidente · <b>${sel==='br'?'Brasil':sel.toUpperCase()}</b></span><span>Total apurado <b class="num">${nk('rpst',rs.pst,1)}%</b></span><span><b class="num">${nk('rvv',rs.cs.reduce((s,x)=>s+x.v,0))}</b> votos válidos</span>`:'';
+  conta();
   // mapa
   if(MAP){for(const uf of UFS){const p=MAP.paths[uf],t=MAP.labels[uf];if(!p)continue;const x=data[uf];
     let tt=p.querySelector('title');if(!tt){tt=document.createElementNS(NS,'title');p.appendChild(tt)}
@@ -198,16 +222,17 @@ function render(){
   // tabela
   const rows=Object.entries(data).filter(([u])=>u!=='br').sort((a,b)=>b[1].te-a[1].te);
   document.getElementById('tbl').innerHTML=`<thead><tr><th>UF</th><th class="n">Eleitores</th><th>Líder</th><th>Lula × Flávio (%)</th><th class="n">Apurado</th></tr></thead><tbody>`+
-   rows.map(([u,x])=>{const l=x.cs[0]||{};
+   rows.map(([u,x],i)=>{const l=x.cs[0]||{};
      const mb=mbar(x),el=eleit(x.te);
-     return `<tr data-u="${u}" class="${sel===u?'sel':''}"><td><b>${u.toUpperCase()}</b></td><td class="n mut">${el}</td><td class="ld"><span class="dot" style="background:${cor(l.nm)}"></span> ${l.nm||'-'}${l.e?' <span class="el">ELEITO</span>':''}</td><td>${mb}</td><td class="n">${pct(x.pst,1)}%</td></tr>`}).join('')+'</tbody>';
+     return `<tr data-u="${u}" class="${sel===u?'sel':''}${E}${mud(u,x.pst+'|'+x.cs.map(c=>c.v))}" style="--i:${i+6}"><td><b>${u.toUpperCase()}</b></td><td class="n mut">${el}</td><td class="ld"><span class="dot" style="background:${cor(l.nm)}"></span> ${l.nm||'-'}${l.e?' <span class="el">ELEITO</span>':''}</td><td>${mb}</td><td class="n">${pct(x.pst,1)}%</td></tr>`}).join('')+'</tbody>';
   // maiores colégios eleitorais (só na visão Brasil)
   const t5=document.getElementById('top5');t5.hidden=sel!=='br';
   if(sel==='br')t5.innerHTML=`<h3>Maiores colégios eleitorais</h3><div class="tw"><table><thead><tr><th>Cidade</th><th class="n">Eleitores</th><th>Lula × Flávio</th><th class="n">Apurado</th></tr></thead><tbody>`+
-    TOP.map(([u,cd,nm])=>{const x=cid[cd];if(!x)return `<tr data-u="${u}"><td><b>${nm}</b> <span class="mut">${u.toUpperCase()}</span></td><td class="n mut">-</td><td class="mut">sem dados</td><td class="n">-</td></tr>`;
+    TOP.map(([u,cd,nm],i)=>{const x=cid[cd];if(!x)return `<tr data-u="${u}" class="${E}" style="--i:${i+8}"><td><b>${nm}</b> <span class="mut">${u.toUpperCase()}</span></td><td class="n mut">-</td><td class="mut">sem dados</td><td class="n">-</td></tr>`;
       const ord=ordLula(x.cs);
-      return `<tr data-u="${u}"><td><b>${nm}</b> <span class="mut">${u.toUpperCase()}</span></td><td class="n mut">${eleit(x.te)}</td><td>${mbar(x)}<div class="vv num">${ord.map(c=>`<span>${fmt(c.v)}</span>`).join('')}</div></td><td class="n">${pct(x.pst,1)}%</td></tr>`}).join('')+'</tbody></table></div>';
+      return `<tr data-u="${u}" class="${E}${mud('c'+cd,x.pst+'|'+x.cs.map(c=>c.v))}" style="--i:${i+8}"><td><b>${nm}</b> <span class="mut">${u.toUpperCase()}</span></td><td class="n mut">${eleit(x.te)}</td><td>${mbar(x)}<div class="vv num">${ord.map(c=>`<span>${fmt(c.v)}</span>`).join('')}</div></td><td class="n">${pct(x.pst,1)}%</td></tr>`}).join('')+'</tbody></table></div>';
   document.querySelectorAll('#tbl tr[data-u],#top5 tr[data-u]').forEach(t=>t.onclick=()=>{selecionar(t.dataset.u);scrollTo({top:0,behavior:'smooth'})});
+  if(E)prim=false;
 }
 
 function selecionar(uf){sel=uf;render();if(uf!=='br')atualizaUF(uf)}
@@ -274,7 +299,7 @@ async function atualizaUF(uf){
 async function loadMap(){ // contornos dos estados extraídos de @svg-maps/brazil (CC BY 4.0), hospedados junto com o site
   try{const m=await (await fetch('brasil.json')).json();
     const svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox',m.viewBox);
-    document.getElementById('map').appendChild(svg);
+    document.getElementById('map').appendChild(svg);anim(svg);
     const paths={},labels={};
     for(const id of UFS){const p=document.createElementNS(NS,'path');p.setAttribute('d',m.paths[id]);svg.appendChild(p);paths[id]=p}
     const OFF={rn:[4,-2],pb:[6,0],pe:[10,0],al:[5,2],se:[3,3],es:[3,0],rj:[2,2],sc:[2,0]};
