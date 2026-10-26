@@ -7,8 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://resultados.tse.jus.br" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preload" href="brasil.json" as="fetch" crossorigin>
+<!-- fonte carrega sem bloquear a primeira pintura; até chegar, usa a fonte do sistema -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--card2:#f8f9fb;--tx:#14161a;--mut:#6b7280;--ln:#e6e8ec;--na:#d9dce2;--txi:#14161a;
   --lula:#d7182a;--flavio:#1d5bd6;--ok:#16a34a}
@@ -40,6 +41,7 @@ h1{font-size:20px;font-weight:800;margin:0;letter-spacing:-.01em}
 .cand.r{text-align:right;align-items:flex-end}
 .cand .nm{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cand .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.flag{width:24px;height:17px;flex:none;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.12)}
 .cand .pc{font-size:40px;font-weight:800;line-height:1.05;color:var(--txi);letter-spacing:-.02em}
 .cand .vt{font-size:14px;color:var(--txi);font-weight:500}
 .dif{text-align:center;background:var(--card2);border:1px solid var(--ln);border-radius:14px;padding:12px 18px;min-width:210px}
@@ -105,7 +107,7 @@ td.ld{white-space:nowrap;font-size:12px}
     <section class="card"><h3 id="maph"></h3><div id="map"></div><div id="mapuf" hidden></div><div class="carr" id="carr"></div><div class="lg" id="lg"></div><div id="top5" class="top5"></div></section>
     <section class="card"><h3>Estados por tamanho do eleitorado</h3><div class="tw"><table id="tbl"></table></div></section>
   </div>
-  <div class="foot"><div id="resumo" class="resumo"></div>Fonte: TSE · resultados.tse.jus.br · atualiza a cada 30s</div>
+  <div class="foot"><div id="resumo" class="resumo"></div>Fonte: TSE · resultados.tse.jus.br · atualiza a cada 30s · Mapas: @svg-maps/brazil (CC BY 4.0) e IBGE</div>
 </div>
 
 <script>
@@ -129,6 +131,8 @@ const murl=(uf,cd)=>`${B}6258/dados/${uf}/${uf}${cd}-c0001-e006258-u.json`;
 // maiores colégios eleitorais (eleitorado TSE 2026): [uf, código TSE, nome]
 const TOP=[['sp','71072','São Paulo'],['rj','60011','Rio de Janeiro'],['df','97012','Brasília'],['mg','41238','Belo Horizonte'],['ba','38490','Salvador'],['ce','13897','Fortaleza'],['am','02550','Manaus']];
 const cid={};
+// bandeira em SVG (emoji de bandeira não aparece no Windows)
+const FLAG='<svg class="flag" viewBox="0 0 20 14" role="img" aria-label="Bandeira do Brasil"><rect width="20" height="14" rx="1.5" fill="#009c3b"/><path d="M10 1.6 18.4 7 10 12.4 1.6 7z" fill="#ffdf00"/><circle cx="10" cy="7" r="3.1" fill="#002776"/><path d="M7 6.4c2-.7 4.3-.4 6 .9" stroke="#fff" stroke-width=".6" fill="none"/></svg>';
 
 async function get(u){
   try{const r=await fetch(u+'?_='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok)return null;const d=await r.json();
@@ -157,7 +161,7 @@ function hero(r){
   const [A,Bc]=ord;const lider=r.cs[0],seg=r.cs[1];
   const dif=seg?lider.v-seg.v:0,pp=seg?lider.p-seg.p:0;
   const cand=(c,right)=>`<div class="cand ${right?'r':''}">
-      <div class="nm">${right?'':`<span class="sw" style="background:${cor(c.nm)}"></span>`}${c.nm}${c.e?' <span class="el">ELEITO</span>':''}${right?`<span class="sw" style="background:${cor(c.nm)}"></span>`:''}</div>
+      <div class="nm">${right?'':`<span class="sw" style="background:${cor(c.nm)}"></span>`}${right&&c===lider?FLAG:''}${c.nm}${c.e?' <span class="el">ELEITO</span>':''}${!right&&c===lider?FLAG:''}${right?`<span class="sw" style="background:${cor(c.nm)}"></span>`:''}</div>
       <div class="pc num">${pct(c.p)}%</div>
       <div class="vt num">${fmt(c.v)} votos</div></div>`;
   return `<div class="h2h">
@@ -267,14 +271,12 @@ async function atualizaUF(uf){
   finally{ufOcup.delete(uf)}
 }
 
-async function loadMap(){ // contornos dos estados (@svg-maps/brazil, CC BY 4.0) – só os paths são usados
-  try{const t=await (await fetch('https://cdn.jsdelivr.net/npm/@svg-maps/brazil@1.0.1/brazil.svg')).text();
-    const doc=new DOMParser().parseFromString(t,'image/svg+xml');
-    const svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox',doc.querySelector('svg').getAttribute('viewBox'));
+async function loadMap(){ // contornos dos estados extraídos de @svg-maps/brazil (CC BY 4.0), hospedados junto com o site
+  try{const m=await (await fetch('brasil.json')).json();
+    const svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox',m.viewBox);
     document.getElementById('map').appendChild(svg);
     const paths={},labels={};
-    doc.querySelectorAll('path').forEach(src=>{const id=src.id;if(!UFS.includes(id))return;
-      const p=document.createElementNS(NS,'path');p.setAttribute('d',src.getAttribute('d'));svg.appendChild(p);paths[id]=p;});
+    for(const id of UFS){const p=document.createElementNS(NS,'path');p.setAttribute('d',m.paths[id]);svg.appendChild(p);paths[id]=p}
     const OFF={rn:[4,-2],pb:[6,0],pe:[10,0],al:[5,2],se:[3,3],es:[3,0],rj:[2,2],sc:[2,0]};
     for(const [id,p] of Object.entries(paths)){const b=p.getBBox();const o=OFF[id]||[0,0];
       const tx=document.createElementNS(NS,'text');tx.setAttribute('x',b.x+b.width/2+o[0]);tx.setAttribute('y',b.y+b.height/2+o[1]);
