@@ -176,7 +176,7 @@ function render(){
   document.getElementById('map').hidden=sel!=='br';ufm.hidden=sel==='br';
   document.getElementById('maph').innerHTML=sel==='br'?'Liderança por estado <span class="mut">· clique para detalhar</span>':`Liderança por município · ${sel.toUpperCase()} <span class="mut">· passe o mouse para ver</span>`;
   if(sel==='br')carr.textContent='';
-  else if(UFM[sel]){if(ufm.firstChild!==UFM[sel].svg)ufm.replaceChildren(UFM[sel].svg);pintaUF(sel);if(!ufOcup.has(sel))carr.textContent=''}
+  else if(UFM[sel]?.svg){if(ufm.firstChild!==UFM[sel].svg)ufm.replaceChildren(UFM[sel].svg);pintaUF(sel);if(!ufOcup.has(sel))carr.textContent=''}
   else{ufm.replaceChildren();carr.textContent=`Carregando mapa de ${sel.toUpperCase()}…`}
   const rs=data[sel];
   document.getElementById('resumo').innerHTML=rs?`<span>Presidente · <b>${sel==='br'?'Brasil':sel.toUpperCase()}</b></span><span>Total apurado <b class="num">${pct(rs.pst)}%</b></span><span><b class="num">${fmt(rs.cs.reduce((s,x)=>s+x.v,0))}</b> votos válidos</span>`:'';
@@ -213,11 +213,13 @@ const UFM={},ufOcup=new Set();let CM=null;
 const jget=async(u,bust)=>{const r=await fetch(u+(bust?'?_='+Date.now():''),{cache:bust?'no-store':'default',signal:AbortSignal.timeout(20000)});if(!r.ok)throw r.status;return r.json()};
 async function pool(itens,n,fn){let i=0;await Promise.all(Array.from({length:Math.min(n,itens.length)},async()=>{while(i<itens.length)await fn(itens[i++])}))}
 
-async function montaUF(uf){
-  if(!CM)CM=await jget(B+'6258/config/mun-e006258-cm.json'); // códigos TSE ↔ IBGE e nomes
-  const est=CM.abr.find(a=>a.cd===uf),porIbge={},nomes={};
+const IBGE={ac:12,al:27,ap:16,am:13,ba:29,ce:23,df:53,es:32,go:52,ma:21,mt:51,ms:50,mg:31,pa:15,pb:25,pr:41,pe:26,pi:22,rj:33,rn:24,rs:43,ro:11,rr:14,sc:42,sp:35,se:28,to:17};
+async function montaGeo(uf,M){
+  // códigos TSE ↔ IBGE e contornos baixam em paralelo
+  const [cm,geo]=await Promise.all([CM||(CM=jget(B+'6258/config/mun-e006258-cm.json').catch(e=>{CM=null;throw e})),
+    jget(`https://servicodados.ibge.gov.br/api/v3/malhas/estados/${IBGE[uf]}?intrarregiao=municipio&formato=application/vnd.geo%2Bjson&qualidade=minima`)]);
+  const est=cm.abr.find(a=>a.cd===uf),porIbge={},nomes={};
   est.mu.forEach(m=>{porIbge[m.cdi]=m.cd;nomes[m.cd]=m.nm});
-  const geo=await jget(`https://servicodados.ibge.gov.br/api/v3/malhas/estados/${est.mu[0].cdi.slice(0,2)}?intrarregiao=municipio&formato=application/vnd.geo%2Bjson&qualidade=minima`);
   const polys=f=>f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;
   let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
   geo.features.forEach(f=>polys(f).forEach(pl=>pl.forEach(r=>r.forEach(([x,y])=>{if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}))));
@@ -230,10 +232,10 @@ async function montaUF(uf){
     const p=document.createElementNS(NS,'path');
     p.setAttribute('d',polys(f).map(pl=>pl.map(r=>'M'+r.map(P).join('L')+'Z').join('')).join(''));
     p.appendChild(document.createElementNS(NS,'title'));svg.appendChild(p);paths[cd]=p});
-  return {svg,paths,nomes,res:{},ht:{}};
+  Object.assign(M,{svg,paths,nomes});
 }
 
-function pintaUF(uf){const M=UFM[uf];
+function pintaUF(uf){const M=UFM[uf];if(!M?.paths)return;
   for(const [cd,p] of Object.entries(M.paths)){const x=M.res[cd],t=p.firstChild;
     if(x&&x.cs.length&&x.cs[0].v){const l=x.cs[0],marg=x.cs[1]?l.p-x.cs[1].p:100;
       p.style.fill=cor(l.nm);p.style.fillOpacity=Math.min(1,.35+marg/40);
@@ -243,19 +245,23 @@ function pintaUF(uf){const M=UFM[uf];
 async function atualizaUF(uf){
   if(ufOcup.has(uf))return;ufOcup.add(uf);
   const carr=document.getElementById('carr'),aviso=s=>{if(sel===uf)carr.textContent=s};
+  const M=UFM[uf]||(UFM[uf]={res:{},ht:{}});
+  // pinta no máximo a cada 200ms enquanto os votos chegam
+  let agendado=false;const agenda=()=>{if(agendado)return;agendado=true;setTimeout(()=>{agendado=false;if(sel===uf)pintaUF(uf)},200)};
   try{
-    if(!UFM[uf]){UFM[uf]=await montaUF(uf);if(sel===uf)render()}
-    const M=UFM[uf];
+    // contornos e votos baixam ao mesmo tempo; o mapa aparece cinza e vai sendo pintado
+    const geoP=M.svg?null:montaGeo(uf,M).then(()=>{if(sel===uf)render()});
     // o arquivo de abrangência traz a hora de totalização de cada município: só baixa os que mudaram
     let lista;
     try{const ab=await jget(`${B}6258/dados/${uf}/${uf}-e006258-ab.json`,true);
-      lista=ab.abr.filter(a=>M.paths[a.cdabr]&&a.ht&&M.ht[a.cdabr]!==a.ht).map(a=>[a.cdabr,a.ht]);}
-    catch(e){lista=Object.keys(M.paths).filter(cd=>!M.res[cd]).map(cd=>[cd,null])}
+      lista=ab.abr.filter(a=>a.tpabr==='mun'&&a.ht&&M.ht[a.cdabr]!==a.ht).map(a=>[a.cdabr,a.ht]);}
+    catch(e){await geoP;lista=Object.keys(M.paths).filter(cd=>!M.res[cd]).map(cd=>[cd,null])}
     const novo=!Object.keys(M.res).length;let feitos=0;
-    await pool(lista,12,async([cd,ht])=>{if(sel!==uf)return;
+    await pool(lista,32,async([cd,ht])=>{if(sel!==uf)return;
       const r=await get(murl(uf,cd));
       if(r){M.res[cd]=r;M.ht[cd]=ht}feitos++;
-      if(novo&&sel===uf&&feitos%40===0){pintaUF(uf);aviso(`Carregando municípios ${feitos}/${lista.length}…`)}});
+      if(novo&&sel===uf){agenda();aviso(`Carregando municípios ${feitos}/${lista.length}…`)}});
+    await geoP;
     if(sel===uf){pintaUF(uf);aviso('')}
   }catch(e){aviso('Não foi possível carregar os municípios.')}
   finally{ufOcup.delete(uf)}
